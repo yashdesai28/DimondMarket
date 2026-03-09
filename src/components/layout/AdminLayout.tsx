@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { LayoutDashboard, Building2, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, Building2, LogOut, Shield, Settings2 } from 'lucide-react';
 import { Button } from '../ui/button';
 
 export function AdminLayout() {
@@ -10,6 +10,7 @@ export function AdminLayout() {
     const navigation = [
         { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
         { name: 'Businesses', href: '/admin/businesses', icon: Building2 },
+        { name: 'Settings (Meta)', href: '/admin/settings', icon: Settings2 },
     ];
 
     return (
@@ -32,8 +33,8 @@ export function AdminLayout() {
                                     <Link
                                         to={item.href}
                                         className={`flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${isActive
-                                                ? 'bg-zinc-100 text-zinc-900'
-                                                : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
+                                            ? 'bg-zinc-100 text-zinc-900'
+                                            : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
                                             }`}
                                     >
                                         <Icon className={`mr-3 h-5 w-5 ${isActive ? 'text-zinc-900' : 'text-zinc-400'}`} />

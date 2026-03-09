@@ -4,6 +4,7 @@ import AdminLogin from '../pages/admin/Login';
 import AdminDashboard from '../pages/admin/Dashboard';
 import BusinessList from '../pages/admin/BusinessList';
 import BusinessFormPage from '../pages/admin/BusinessFormPage';
+import MetadataManager from '../pages/admin/MetadataManager';
 import OwnerLogin from '../pages/owner/Login';
 import OwnerDashboard from '../pages/owner/Dashboard';
 import Inventory from '../pages/owner/Inventory';
@@ -51,6 +52,7 @@ export default function AppRouter() {
                 <Route path="businesses" element={<BusinessList />} />
                 <Route path="businesses/add" element={<BusinessFormPage />} />
                 <Route path="businesses/:id/edit" element={<BusinessFormPage />} />
+                <Route path="settings" element={<MetadataManager />} />
             </Route>
 
             {/* Owner Login - No sidebar */}
