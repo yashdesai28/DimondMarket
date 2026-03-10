@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createDiamond, fetchByCertificateId, extractCertificateFile } from '../../api/diamond.api';
+import { useAuthStore } from '../../store/authStore';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -11,6 +12,7 @@ import toast from 'react-hot-toast';
 export default function AddDiamond() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const { businessId } = useAuthStore();
     const [activeTab, setActiveTab] = useState<'id' | 'file' | 'manual'>('manual');
 
     const [formData, setFormData] = useState({
@@ -42,7 +44,7 @@ export default function AddDiamond() {
     });
 
     const fetchIdMutation = useMutation({
-        mutationFn: (id: string) => fetchByCertificateId(id),
+        mutationFn: (id: string) => fetchByCertificateId(id, formData.certificateLab),
         onSuccess: (data: any) => {
             toast.success('Details fetched successfully');
             setFormData({ ...formData, ...data.data });
@@ -67,6 +69,7 @@ export default function AddDiamond() {
         Object.entries(formData).forEach(([k, v]) => {
             if (v) data.append(k, String(v));
         });
+        if (businessId) data.append('businessId', businessId);
         saveMutation.mutate(data);
     };
 

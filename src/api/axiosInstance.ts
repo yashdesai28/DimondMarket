@@ -18,9 +18,12 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         // Handle global auth errors
-        if (error.response?.status === 401) {
+        const status = error.response?.status;
+        const errorMessage = error.response?.data?.error;
+
+        if (status === 401 || (status === 403 && errorMessage === 'User account is deactivated')) {
             useAuthStore.getState().logout();
-            window.location.href = '/admin/login'; // Simple redirect for now
+            window.location.href = '/'; // Redirect to root on unauthorized/deactivated
         }
         return Promise.reject(error);
     }

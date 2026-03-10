@@ -5,6 +5,7 @@ type Role = 'SUPER_ADMIN' | 'OWNER' | 'MANAGER' | null;
 
 interface User {
     id: string;
+    name: string | null;
     email: string;
     role: Role;
     businessId: string | null;

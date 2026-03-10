@@ -14,10 +14,6 @@ export default function OwnerDashboard() {
         enabled: !!businessId,
     });
 
-    if (isLoading) return <div className="p-8">Loading dashboard...</div>;
-
-    const totalValue = diamonds?.reduce((acc, d) => acc + (Number(d.price) || 0), 0) || 0;
-
     // Calculate shape statistics
     const shapeStats = useMemo(() => {
         if (!diamonds) return [];
@@ -34,10 +30,18 @@ export default function OwnerDashboard() {
             .map(([shape, count]) => ({ shape, count }));
     }, [diamonds]);
 
+    if (isLoading) return <div className="p-8">Loading dashboard...</div>;
+
+    const totalValue = diamonds?.reduce((acc, d) => acc + (Number(d.price) || 0), 0) || 0;
+
     return (
         <div className="p-8 h-full bg-white text-zinc-900">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold tracking-tight">Dashboard overview</h1>
+                <h1 className="text-3xl font-bold tracking-tight">
+                    {useAuthStore.getState().user?.name
+                        ? `Welcome, ${useAuthStore.getState().user?.name}`
+                        : 'Dashboard overview'}
+                </h1>
                 <p className="text-zinc-500 mt-1">Summary of your diamond inventory</p>
             </div>
 

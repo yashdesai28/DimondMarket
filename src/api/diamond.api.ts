@@ -19,11 +19,15 @@ export interface Diamond {
     certificateFile?: string;
     status: string;
     businessId: string;
+    depthPercentage?: number;
+    tablePercentage?: number;
 }
 
 export const fetchDiamonds = async (businessId: string): Promise<Diamond[]> => {
     const response = await api.get(`/diamonds?businessId=${businessId}`);
-    return response.data.data.diamonds;
+    // Handle both { success, data: { diamonds } } and { success, data: diamonds } formats
+    const data = response.data.data;
+    return Array.isArray(data) ? data : data.diamonds;
 };
 
 export const fetchDiamondById = async (id: string): Promise<Diamond> => {
@@ -51,7 +55,20 @@ export const extractCertificateFile = async (file: File) => {
     return response.data;
 };
 
-export const fetchByCertificateId = async (certificateNumber: string) => {
-    const response = await api.post('/diamonds/fetch-by-certificate', { certificateNumber });
+export const fetchByCertificateId = async (certificateNumber: string, lab: string) => {
+    const response = await api.post('/diamonds/fetch-by-certificate', { certificateNumber, lab });
     return response.data;
+};
+
+export const seedDiamonds = async (): Promise<void> => {
+    await api.post('/diamonds/seed');
+};
+
+export const bulkUploadDiamonds = async (file: File): Promise<{ insertedCount: number, failedCount: number, errors: any[] }> => {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await api.post('/diamonds/bulk-upload', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.data;
 };

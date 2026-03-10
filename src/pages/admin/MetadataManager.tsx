@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Input } from '../../components/ui/input';
 import { Settings2, Plus, GripVertical, Trash2, EyeOff, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { StandardModal } from '../../components/ui/StandardModal';
 
 const SECTIONS: { key: keyof GlobalMetadataConfig; title: string; desc: string }[] = [
     { key: 'shapes', title: 'Diamond Shapes', desc: 'Standard diamond shapes (Round, Pear, etc.)' },
@@ -33,10 +34,45 @@ export default function MetadataManager() {
     const [config, setConfig] = useState<GlobalMetadataConfig>({});
     // Store localized draft inputs for new items: { sectionKey: { code: '', label: '', desc: '' } }
     const [draftInputs, setDraftInputs] = useState<Record<string, Partial<MetadataTag>>>({});
+    const [tagToDelete, setTagToDelete] = useState<{ sectionKey: keyof GlobalMetadataConfig, index: number } | null>(null);
 
     useEffect(() => {
         if (metadata?.config) {
-            setConfig(metadata.config);
+            const normalized: GlobalMetadataConfig = {};
+            const keyMap: Record<string, keyof GlobalMetadataConfig> = {
+                'diamond_shapes': 'shapes',
+                'carat_ranges': 'caratRanges',
+                'color_grades': 'colors',
+                'clarity_grades': 'clarities',
+                'cut_quality': 'cutGrades',
+                'polish_quality': 'polishGrades',
+                'symmetry_quality': 'symmetryGrades',
+                'certification_labs': 'labs',
+                'origin_ethics': 'origins',
+                'collection_tags': 'marketingTags',
+                'status_codes': 'availabilityTags',
+                'visual_shades': 'shades',
+                'luster_codes': 'lusters'
+            };
+
+            Object.entries(metadata.config).forEach(([key, value]) => {
+                const targetKey = keyMap[key] || (key as keyof GlobalMetadataConfig);
+                let items: any[] = [];
+
+                if (Array.isArray(value)) {
+                    items = value;
+                } else if (value && typeof value === 'object' && Array.isArray((value as any).tags)) {
+                    items = (value as any).tags;
+                }
+
+                if (items.length > 0) {
+                    // Safe cast and merge if items already exist somehow
+                    const current = normalized[targetKey] || [];
+                    normalized[targetKey] = [...current, ...items] as any;
+                }
+            });
+
+            setConfig(normalized);
         }
     }, [metadata]);
 
@@ -92,10 +128,16 @@ export default function MetadataManager() {
     };
 
     const removeItem = (sectionKey: keyof GlobalMetadataConfig, index: number) => {
-        if (!window.confirm('Are you sure you want to permanently delete this tag? (Hiding it is usually safer for legacy data)')) return;
+        setTagToDelete({ sectionKey, index });
+    };
+
+    const confirmRemoveItem = () => {
+        if (!tagToDelete) return;
+        const { sectionKey, index } = tagToDelete;
         const currentList = [...(config[sectionKey] || [])];
         currentList.splice(index, 1);
         setConfig({ ...config, [sectionKey]: currentList });
+        setTagToDelete(null);
     };
 
     const updateDraft = (sectionKey: string, field: keyof MetadataTag, value: string) => {
@@ -105,66 +147,7 @@ export default function MetadataManager() {
         });
     };
 
-    const handleSeedDefaults = () => {
-        if (!window.confirm('This will append real industry standard data (GIA colors, clarities, etc.) to your current configuration. Continue?')) return;
 
-        const seeds: GlobalMetadataConfig = {
-            shapes: [
-                { code: 'RB', label: 'Round Brilliant' },
-                { code: 'OV', label: 'Oval' },
-                { code: 'PR', label: 'Princess' },
-                { code: 'PS', label: 'Pear' },
-                { code: 'EM', label: 'Emerald' },
-                { code: 'CU', label: 'Cushion' },
-                { code: 'MQ', label: 'Marquise' },
-                { code: 'HS', label: 'Heart' },
-                { code: 'RD', label: 'Radiant' },
-            ],
-            colors: ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'].map(c => ({ code: c, label: c })),
-            clarities: ['FL', 'IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2', 'I1', 'I2', 'I3'].map(c => ({ code: c, label: c })),
-            cutGrades: ['EX', 'VG', 'G', 'F', 'P'].map(c => ({ code: c, label: c })),
-            polishGrades: ['EX', 'VG', 'G', 'F', 'P'].map(c => ({ code: c, label: c })),
-            symmetryGrades: ['EX', 'VG', 'G', 'F', 'P'].map(c => ({ code: c, label: c })),
-            labs: [
-                { code: 'GIA', label: 'GIA' },
-                { code: 'IGI', label: 'IGI' },
-                { code: 'HRD', label: 'HRD' }
-            ],
-            caratRanges: [
-                { code: '0.01-0.29', label: '0.01-0.29 ct' },
-                { code: '0.30-0.49', label: '0.30-0.49 ct' },
-                { code: '0.50-0.69', label: '0.50-0.69 ct' },
-                { code: '0.70-0.99', label: '0.70-0.99 ct' },
-                { code: '1.00-1.49', label: '1.00-1.49 ct' },
-                { code: '1.50-1.99', label: '1.50-1.99 ct' },
-                { code: '2.00-2.99', label: '2.00-2.99 ct' },
-                { code: '3.00+', label: '3.00+ ct' },
-            ],
-            availabilityTags: [
-                { code: 'AVAILABLE', label: 'In Stock' },
-                { code: 'HOLD', label: 'On Memo-Hold' },
-                { code: 'SOLD', label: 'Sold Out' },
-            ]
-        };
-
-        const newConfig = { ...config };
-        Object.keys(seeds).forEach((k) => {
-            const key = k as keyof GlobalMetadataConfig;
-            const currentItems = newConfig[key] || [];
-            const seedItems = seeds[key] || [];
-
-            // Merge only if code doesn't exist
-            seedItems.forEach(item => {
-                if (!currentItems.some(ci => ci.code === item.code)) {
-                    currentItems.push(item);
-                }
-            });
-            newConfig[key] = currentItems;
-        });
-
-        setConfig(newConfig);
-        toast.success('Real industry data prepared! Don\'t forget to Save Configuration.');
-    };
 
     if (isLoading) return <div className="p-8">Loading metadata settings...</div>;
 
@@ -176,10 +159,6 @@ export default function MetadataManager() {
                     <p className="text-zinc-500 mt-1">Manage all global dropdown tags and classifications used across the platform.</p>
                 </div>
                 <div className="flex gap-3">
-                    <Button variant="outline" onClick={handleSeedDefaults} className="border-zinc-200">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Seed Real Data
-                    </Button>
                     <Button onClick={handleSave} disabled={mutation.isPending} className="bg-zinc-900 hover:bg-zinc-800 text-white min-w-[140px]">
                         <Settings2 className="mr-2 h-4 w-4" />
                         {mutation.isPending ? 'Saving...' : 'Save Configuration'}
@@ -275,6 +254,33 @@ export default function MetadataManager() {
                     );
                 })}
             </div>
+
+            <StandardModal
+                isOpen={!!tagToDelete}
+                onClose={() => setTagToDelete(null)}
+                title="Delete Tag"
+                description="This action will permanently remove this tag from the current session."
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-zinc-600">
+                        Are you sure you want to permanently delete this tag? <strong>Hiding it</strong> using the eye icon is usually safer for legacy data.
+                    </p>
+                    <div className="flex justify-end gap-3 pt-4 border-t border-zinc-100">
+                        <Button
+                            variant="outline"
+                            onClick={() => setTagToDelete(null)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={confirmRemoveItem}
+                        >
+                            Yes, Delete
+                        </Button>
+                    </div>
+                </div>
+            </StandardModal>
         </div>
     );
 }

@@ -5,10 +5,18 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Plus, Edit, Trash2, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { StandardModal } from '../../components/ui/StandardModal';
+import { Loader } from '../../components/ui/Loader';
+import { useState } from 'react';
 
 export default function BusinessList() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const [businessToDelete, setBusinessToDelete] = useState<Business | null>(null);
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 8;
 
     const { data: businesses, isLoading } = useQuery({
         queryKey: ['businesses'],
@@ -20,6 +28,7 @@ export default function BusinessList() {
         onSuccess: () => {
             toast.success('Business deleted successfully');
             queryClient.invalidateQueries({ queryKey: ['businesses'] });
+            setBusinessToDelete(null);
         },
         onError: (error: any) => {
             toast.error(error.response?.data?.message || 'Failed to delete business');
@@ -27,12 +36,10 @@ export default function BusinessList() {
     });
 
     const handleDelete = (id: string) => {
-        if (window.confirm('Are you sure you want to delete this business? All their data will be lost.')) {
-            deleteMutation.mutate(id);
-        }
+        deleteMutation.mutate(id);
     };
 
-    if (isLoading) return <div className="p-8">Loading businesses...</div>;
+    if (isLoading) return <Loader fullScreen text="Loading businesses..." />;
 
     return (
         <div className="p-8 h-full bg-white text-zinc-900">
@@ -51,15 +58,15 @@ export default function BusinessList() {
                     <CardTitle className="text-zinc-900">Registered Businesses ({businesses?.length || 0})</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto w-full">
                         <table className="w-full text-sm text-left text-zinc-600">
                             <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50">
                                 <tr>
-                                    <th className="px-4 py-3 rounded-tl-md">Business Name</th>
-                                    <th className="px-4 py-3">Owner</th>
-                                    <th className="px-4 py-3">Email</th>
-                                    <th className="px-4 py-3">Status</th>
-                                    <th className="px-4 py-3 text-right rounded-tr-md">Actions</th>
+                                    <th className="px-4 py-3 rounded-tl-md whitespace-nowrap">Business Name</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">Owner</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">Email</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">Status</th>
+                                    <th className="px-4 py-3 text-right rounded-tr-md whitespace-nowrap">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -70,25 +77,25 @@ export default function BusinessList() {
                                         </td>
                                     </tr>
                                 ) : (
-                                    businesses?.map((b: Business) => (
+                                    businesses?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((b: Business) => (
                                         <tr key={b.id} className="border-b border-zinc-200 hover:bg-zinc-50">
                                             <td className="px-4 py-3 font-medium flex items-center gap-3">
                                                 {b.logoUrl ? (
-                                                    <img src={b.logoUrl} alt={b.name} className="w-8 h-8 rounded-full object-cover" />
+                                                    <img src={b.logoUrl} alt={b.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
                                                 ) : (
-                                                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold ring-1 ring-zinc-700">
+                                                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold ring-1 ring-zinc-700 shrink-0">
                                                         {b.name.charAt(0)}
                                                     </div>
                                                 )}
-                                                <div>
-                                                    <div>{b.name}</div>
-                                                    <div className="text-xs text-zinc-500 font-mono text-[10px] mt-0.5">/{b.slug}</div>
+                                                <div className="min-w-[120px]">
+                                                    <div className="text-slate-900 truncate">{b.name}</div>
+                                                    <div className="text-xs text-zinc-500 font-mono text-[10px] mt-0.5 truncate">/{b.slug}</div>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3">{b.ownerName}</td>
-                                            <td className="px-4 py-3">{b.email}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap">{b.ownerName}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap">{b.email}</td>
                                             <td className="px-4 py-3">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${b.isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${b.isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
                                                     {b.isActive ? 'Active' : 'Inactive'}
                                                 </span>
                                             </td>
@@ -98,10 +105,10 @@ export default function BusinessList() {
                                                         <ExternalLink className="h-4 w-4 text-zinc-500 hover:text-zinc-900" />
                                                     </Button>
                                                     <Button variant="ghost" size="icon" onClick={() => navigate(`/admin/businesses/${b.id}/edit`)} title="Edit Business">
-                                                        <Edit className="h-4 w-4 text-zinc-900 hover:text-blue-300" />
+                                                        <Edit className="h-4 w-4 text-zinc-900 hover:text-blue-500" />
                                                     </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(b.id)} disabled={deleteMutation.isPending} title="Delete Business">
-                                                        <Trash2 className="h-4 w-4 text-red-400 hover:text-red-300" />
+                                                    <Button variant="ghost" size="icon" onClick={() => setBusinessToDelete(b)} disabled={deleteMutation.isPending} title="Delete Business">
+                                                        <Trash2 className="h-4 w-4 text-red-400 hover:text-red-500" />
                                                     </Button>
                                                 </div>
                                             </td>
@@ -111,8 +118,62 @@ export default function BusinessList() {
                             </tbody>
                         </table>
                     </div>
+                    {businesses && businesses.length > itemsPerPage && (
+                        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center justify-between text-sm text-slate-500 w-full">
+                            <div>
+                                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, businesses.length)} of {businesses.length} businesses
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    Previous
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(businesses.length / itemsPerPage), p + 1))}
+                                    disabled={currentPage === Math.ceil(businesses.length / itemsPerPage)}
+                                >
+                                    Next
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
+            <StandardModal
+                isOpen={!!businessToDelete}
+                onClose={() => setBusinessToDelete(null)}
+                title="Remove Business"
+                description="This action cannot be undone."
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-zinc-600">
+                        Are you sure you want to permanently delete <strong>{businessToDelete?.name}</strong>?
+                        This will erase all of their data, inventory, and users.
+                    </p>
+                    <div className="flex justify-end gap-3 pt-4 border-t border-zinc-100">
+                        <Button
+                            variant="outline"
+                            onClick={() => setBusinessToDelete(null)}
+                            disabled={deleteMutation.isPending}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={() => businessToDelete && handleDelete(businessToDelete.id)}
+                            disabled={deleteMutation.isPending}
+                        >
+                            {deleteMutation.isPending ? 'Removing...' : 'Yes, Delete Permanently'}
+                        </Button>
+                    </div>
+                </div>
+            </StandardModal>
         </div>
     );
 }

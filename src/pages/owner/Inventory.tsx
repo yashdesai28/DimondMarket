@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchDiamonds, deleteDiamond, type Diamond } from '../../api/diamond.api';
+import { fetchDiamonds, deleteDiamond, seedDiamonds, type Diamond } from '../../api/diamond.api';
+import { fetchBranding } from '../../api/business.api';
 import { useAuthStore } from '../../store/authStore';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import { Trash2, ExternalLink, Plus, Download, X, FileSpreadsheet } from 'lucide-react';
+import { Trash2, ExternalLink, Plus, X, FileSpreadsheet, Sparkles, Upload } from 'lucide-react';
 import AddDiamondPanel from '../../components/ui/AddDiamondPanel';
+import BulkUploadModal from '../../components/ui/BulkUploadModal';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 
@@ -13,10 +15,17 @@ export default function Inventory() {
     const { businessId } = useAuthStore();
     const queryClient = useQueryClient();
     const [showAddPanel, setShowAddPanel] = useState(false);
+    const [showBulkUpload, setShowBulkUpload] = useState(false);
 
     const { data: diamonds, isLoading } = useQuery({
         queryKey: ['diamonds', businessId],
         queryFn: () => fetchDiamonds(businessId!),
+        enabled: !!businessId,
+    });
+
+    const { data: branding } = useQuery({
+        queryKey: ['branding', businessId],
+        queryFn: () => fetchBranding(businessId!), // Note: OwnerLayout uses slug, but this takes ID or we fallback
         enabled: !!businessId,
     });
 
@@ -37,35 +46,80 @@ export default function Inventory() {
         }
     };
 
+    const seedMutation = useMutation({
+        mutationFn: seedDiamonds,
+        onSuccess: () => {
+            toast.success('Successfully added 5 dummy diamonds');
+            queryClient.invalidateQueries({ queryKey: ['diamonds', businessId] });
+        },
+        onError: () => toast.error('Failed to seed diamonds')
+    });
+
     const exportToExcel = () => {
         if (!diamonds || diamonds.length === 0) {
             toast.error('No inventory to export');
             return;
         }
 
-        // Format data for Excel
-        const exportData = diamonds.map(d => ({
-            'Certificate Number': d.certificateNumber,
-            'Lab': d.certificateLab,
-            'Shape': d.shape,
-            'Carat Weight': d.carat,
-            'Color': d.color,
-            'Clarity': d.clarity,
-            'Cut': d.cut || '-',
-            'Polish': d.polish || '-',
-            'Symmetry': d.symmetry || '-',
-            'Fluorescence': d.fluorescence || '-',
-            'Measurements': d.measurements || '-',
-            'Price ($)': d.price,
-            'Status': d.status
-        }));
+        const orgName = branding?.name || 'Diamond Co';
+        const contactLine = `${branding?.ownerName || ''} | ${branding?.whatsappNumber || ''}`.trim().replace(/^\||\|$/g, '').trim();
 
-        // Create workbook and worksheet
-        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        // Target output format:
+        // SR.NO, STOCK, SHAPE, WEIGHT, COLOR, CLARITY, CUT, POLISH, SYMMETRY, FL, MEASUREMENTS, DEPTH, TABLE, REPORT, Diamond Video
+
+        // Create Array of Arrays for explicit layout mapping
+        const aoaData: any[][] = [];
+
+        // Blank row for padding
+        aoaData.push([]);
+
+        // Header rows imitating the requested visual format somewhat
+        aoaData.push(['', orgName, '', '', '', '', '', '', '', '', '', contactLine]);
+        if (contactLine) aoaData.push(['', 'An Elegance That You Can Wear', '', '', '', '', '', '', '', '', '']);
+
+        // Data headers
+        aoaData.push([
+            'SR.NO',
+            'STOCK',
+            'SHAPE',
+            'WEIGHT',
+            'COLOR',
+            'CLARITY',
+            'CUT',
+            'POLISH',
+            'SYMMETRY',
+            'FL',
+            'MEASUREMENTS',
+            'DEPTH',
+            'TABLE',
+            'REPORT',
+            'Diamond Video'
+        ]);
+
+        diamonds.forEach((d, i) => {
+            aoaData.push([
+                i + 1,
+                d.certificateNumber ? `STOCK-${d.certificateNumber.slice(-4)}` : `STK-${i + 1}`, // Placeholder stock logic
+                d.shape.toUpperCase(),
+                d.carat,
+                d.color,
+                d.clarity,
+                d.cut?.charAt(0) === 'E' ? 'EX' : d.cut?.charAt(0) || '',
+                d.polish?.charAt(0) === 'E' ? 'EX' : d.polish?.charAt(0) || '',
+                d.symmetry?.charAt(0) === 'E' ? 'EX' : d.symmetry?.charAt(0) || '',
+                d.fluorescence?.charAt(0) || 'N',
+                d.measurements || '',
+                d.depthPercentage || '',
+                d.tablePercentage || '',
+                d.certificateNumber ? `${d.certificateLab || ''} ${d.certificateNumber}`.trim() : '',
+                (d as any).videoUrl || '' // Accommodate the schema change cleanly
+            ]);
+        });
+
+        const worksheet = XLSX.utils.aoa_to_sheet(aoaData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
 
-        // Download file
         XLSX.writeFile(workbook, 'Diamond_Inventory.xlsx');
     };
 
@@ -83,10 +137,29 @@ export default function Inventory() {
                     <div className="flex gap-3">
                         <Button
                             variant="outline"
+                            size="sm"
+                            className="text-amber-600 border-amber-200 hover:bg-amber-50"
+                            onClick={() => {
+                                if (window.confirm('Add 5 dummy diamonds to test the layout?')) seedMutation.mutate();
+                            }}
+                            disabled={seedMutation.isPending}
+                        >
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            {seedMutation.isPending ? 'Seeding...' : 'Seed Data'}
+                        </Button>
+                        <Button
+                            variant="outline"
                             className="border-zinc-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-200"
                             onClick={exportToExcel}
                         >
                             <FileSpreadsheet className="mr-2 h-4 w-4" /> Export Excel
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 hover:border-blue-200"
+                            onClick={() => setShowBulkUpload(true)}
+                        >
+                            <Upload className="mr-2 h-4 w-4" /> Bulk Upload
                         </Button>
                         <Button
                             onClick={() => setShowAddPanel(prev => !prev)}
@@ -110,6 +183,13 @@ export default function Inventory() {
                     onClose={() => setShowAddPanel(false)}
                 />
             )}
+
+            {/* Bulk Upload Modal */}
+            <BulkUploadModal
+                isOpen={showBulkUpload}
+                onClose={() => setShowBulkUpload(false)}
+                businessId={businessId!}
+            />
 
             {/* Inventory Table */}
             <div className="px-8 py-6">

@@ -1,11 +1,19 @@
+import { useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { LayoutDashboard, Building2, LogOut, Shield, Settings2 } from 'lucide-react';
 import { Button } from '../ui/button';
 
+import { verifySession } from '../../api/auth.api';
+
 export function AdminLayout() {
     const { logout } = useAuthStore();
     const location = useLocation();
+
+    // Verify token validity on navigation. The Axios Interceptor handles the failure redirect.
+    useEffect(() => {
+        verifySession().catch(() => { });
+    }, [location.pathname]);
 
     const navigation = [
         { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
