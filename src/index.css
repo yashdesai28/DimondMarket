@@ -131,3 +131,37 @@
     @apply font-sans;
   }
 }
+
+/* Custom Dark Scrollbar (General) */
+.custom-scrollbar-dark::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.custom-scrollbar-dark::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar-dark::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+.custom-scrollbar-dark::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 140, 66, 0.5); /* Copper hover */
+}
+
+/* Custom Filter Scrollbar (Matches Screenshot) */
+.custom-scrollbar-filter::-webkit-scrollbar {
+    width: 14px;
+}
+.custom-scrollbar-filter::-webkit-scrollbar-track {
+    background: transparent;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+.custom-scrollbar-filter::-webkit-scrollbar-thumb {
+    background: #475569; /* Thick Slate 600 thumb */
+    border-radius: 20px;
+    border: 4px solid #243342; /* Makes the thumb look padded inside the background */
+}
+.custom-scrollbar-filter::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
