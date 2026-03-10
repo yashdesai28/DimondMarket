@@ -9,6 +9,8 @@ import OwnerDashboard from '../pages/owner/Dashboard';
 import Inventory from '../pages/owner/Inventory';
 import AddDiamond from '../pages/owner/AddDiamond';
 import Home from '../pages/Home';
+import UserDiamondList from '../pages/UserDiamondList';
+import UserDiamondDetail from '../pages/UserDiamondDetail';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { OwnerLayout } from '../components/layout/OwnerLayout';
 
@@ -34,6 +36,8 @@ export default function AppRouter() {
     return (
         <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/diamonds" element={<UserDiamondList />} />
+            <Route path="/diamond/:id" element={<UserDiamondDetail />} />
 
             {/* Super Admin Login - No sidebar */}
             <Route path="/admin/login" element={<AdminLogin />} />
