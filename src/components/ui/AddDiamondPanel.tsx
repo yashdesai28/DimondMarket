@@ -229,7 +229,29 @@ export default function AddDiamondPanel({ businessId, onClose }: AddDiamondPanel
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
 
-                let jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+                // Find the actual header row (skip branding/padding)
+                const dataAOA = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+                let headerRowIndex = 0;
+                const requiredKeywords = ['SHAPE', 'WEIGHT', 'CARAT', 'COLOR', 'CLARITY'];
+
+                for (let i = 0; i < Math.min(dataAOA.length, 20); i++) {
+                    const row = dataAOA[i];
+                    if (!Array.isArray(row)) continue;
+
+                    const matches = row.filter(cell =>
+                        cell && requiredKeywords.some(kw => cell.toString().toUpperCase().includes(kw))
+                    ).length;
+
+                    if (matches >= 3) {
+                        headerRowIndex = i;
+                        break;
+                    }
+                }
+
+                let jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, {
+                    range: headerRowIndex,
+                    defval: ''
+                });
                 jsonData = jsonData.filter((row: any) => Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== ''));
 
                 if (jsonData.length > 0) {
