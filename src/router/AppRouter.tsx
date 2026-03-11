@@ -9,6 +9,7 @@ import OwnerLogin from '../pages/owner/Login';
 import OwnerDashboard from '../pages/owner/Dashboard';
 import Inventory from '../pages/owner/Inventory';
 import AddDiamond from '../pages/owner/AddDiamond';
+import Support from '../pages/owner/Support';
 import Home from '../pages/Home';
 import UserDiamondList from '../pages/UserDiamondList';
 import UserDiamondDetail from '../pages/UserDiamondDetail';
@@ -74,6 +75,7 @@ export default function AppRouter() {
                 <Route path="dashboard" element={<OwnerDashboard />} />
                 <Route path="inventory" element={<Inventory />} />
                 <Route path="add-diamond" element={<AddDiamond />} />
+                <Route path="support" element={<Support />} />
             </Route>
         </Routes>
     );

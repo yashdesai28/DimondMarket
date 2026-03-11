@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   fetchDiamonds,
   deleteDiamond,
-  seedDiamonds,
   updateDiamond,
 } from "../../api/diamond.api";
 import type { Diamond } from "../../api/diamond.api";
@@ -21,21 +20,27 @@ import {
   ExternalLink,
   Plus,
   X,
-  FileSpreadsheet,
-  Sparkles,
   Upload,
   Pencil,
   Search,
+  FileSpreadsheet,
   ChevronLeft,
   ChevronRight,
   FileText,
-  Filter,
   Eye,
   Download,
   Copy,
   Check,
-  Loader2,
+  Gem,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import AddDiamondPanel from "../../components/ui/AddDiamondPanel";
 import BulkUploadModal from "../../components/ui/BulkUploadModal";
 import EditDiamondModal from "../../components/ui/EditDiamondModal";
@@ -48,10 +53,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
+import { Switch } from "../../components/ui/switch";
 import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+
+const METADATA_CONSTANTS = {
+  SHAPES: ['Round', 'Princess', 'Oval', 'Cushion', 'Emerald', 'Pear', 'Marquise', 'Radiant', 'Heart'],
+  COLORS: ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'],
+  CLARITIES: ['FL', 'IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2', 'I1', 'I2', 'I3'],
+  CUTS: ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor']
+};
 
 export default function Inventory() {
   const { businessId } = useAuthStore();
@@ -82,15 +95,17 @@ export default function Inventory() {
   // Filter State
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [limit] = useState(50);
   const [selectedShape, setSelectedShape] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedClarity, setSelectedClarity] = useState<string>("");
   const [selectedCut, setSelectedCut] = useState<string>("");
   const [caratMin, setCaratMin] = useState<string>("");
   const [caratMax, setCaratMax] = useState<string>("");
+  const [limit, setLimit] = useState(50);
+  const [sortBy, setSortBy] = useState<string>("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       "diamonds",
       businessId,
@@ -99,6 +114,12 @@ export default function Inventory() {
       selectedShape,
       selectedColor,
       selectedClarity,
+      selectedCut,
+      caratMin,
+      caratMax,
+      limit,
+      sortBy,
+      sortOrder,
     ],
     queryFn: () =>
       fetchDiamonds({
@@ -112,13 +133,14 @@ export default function Inventory() {
         cut: selectedCut || undefined,
         caratMin: caratMin ? parseFloat(caratMin) : undefined,
         caratMax: caratMax ? parseFloat(caratMax) : undefined,
+        sortBy,
+        sortOrder,
       }),
     enabled: !!businessId,
+    placeholderData: keepPreviousData,
   });
 
-  const diamonds = data?.diamonds || [];
-  const total = data?.total || 0;
-  const totalPages = data?.totalPages || 0;
+  const { diamonds = [], total = 0, totalPages = 0 } = data || {};
 
   const { data: branding } = useQuery({
     queryKey: ["branding", businessId],
@@ -147,6 +169,16 @@ export default function Inventory() {
     },
     onError: () => toast.error("Failed to update status"),
   });
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(field);
+      setSortOrder("desc");
+    }
+    setPage(1);
+  };
 
   const handleDelete = (id: string) => {
     setConfirmConfig({
@@ -197,15 +229,6 @@ export default function Inventory() {
     return `${companyName}_${date}_${time}`;
   };
 
-  const seedMutation = useMutation({
-    mutationFn: seedDiamonds,
-    onSuccess: () => {
-      toast.success("Successfully added 5 dummy diamonds");
-      queryClient.invalidateQueries({ queryKey: ["diamonds", businessId] });
-    },
-    onError: () => toast.error("Failed to seed diamonds"),
-  });
-
   const exportToExcel = () => {
     if (!diamonds || diamonds.length === 0) {
       toast.error("No inventory to export");
@@ -245,7 +268,7 @@ export default function Inventory() {
 
     const dataToExport = getExportData();
 
-    dataToExport.forEach((d, i) => {
+    dataToExport.forEach((d: Diamond, i: number) => {
       aoaData.push([
         i + 1,
         d.certificateNumber ? `STOCK-${d.certificateNumber.slice(-4)}` : `STK-${i + 1}`,
@@ -284,7 +307,7 @@ export default function Inventory() {
     
     // Header for CSV
     const headers = ["Cert No", "Shape", "Carat", "Color", "Clarity", "Cut", "Price", "Status"];
-    const rows = dataToExport.map(d => [
+    const rows = dataToExport.map((d: Diamond) => [
       d.certificateNumber,
       d.shape,
       d.carat,
@@ -313,7 +336,7 @@ export default function Inventory() {
     doc.setFontSize(18);
     doc.text(branding?.name || "Diamond Inventory", 105, 20, { align: "center" });
     
-    const tableData = dataToExport.map((d, i) => [
+    const tableData = dataToExport.map((d: Diamond, i: number) => [
       i + 1,
       d.certificateNumber,
       d.shape,
@@ -333,7 +356,15 @@ export default function Inventory() {
     doc.save(`${generateFileName()}.pdf`);
   };
 
-  if (isLoading) return <div className="p-8">Loading inventory...</div>;
+  if (isLoading && !data) return (
+    <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] p-8 space-y-4">
+      <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+      <div className="text-center">
+        <h3 className="text-lg font-semibold text-zinc-900">Loading Inventory</h3>
+        <p className="text-zinc-500">Please wait while we fetch your diamond listings.</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="h-full bg-white text-zinc-900">
@@ -341,30 +372,32 @@ export default function Inventory() {
       <div className="px-8 pt-8 pb-0">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-3">
               Diamond Inventory
+              {isFetching && <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />}
             </h1>
             <p className="text-zinc-500 mt-1">
               Manage and view your listed diamonds.
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Button
               variant="outline"
-              size="sm"
-              className="text-amber-600 border-amber-200 hover:bg-amber-50"
+              className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 hover:border-blue-200 w-full sm:w-auto"
               onClick={() => {
-                setConfirmConfig({
-                  isOpen: true,
-                  title: "Seed Data",
-                  description: "This will add 5 dummy diamonds to your inventory for testing. Continue?",
-                  onConfirm: () => seedMutation.mutate(),
-                });
+                setSelectedShape("");
+                setSelectedColor("");
+                setSelectedClarity("");
+                setSelectedCut("");
+                setCaratMin("");
+                setCaratMax("");
+                setSearch("");
+                setSortBy("createdAt");
+                setSortOrder("desc");
+                setPage(1);
               }}
-              disabled={seedMutation.isPending}
             >
-              <Sparkles className="mr-2 h-4 w-4" />
-              {seedMutation.isPending ? "Seeding..." : "Seed Data"}
+              Reset Table
             </Button>
             <div className="flex gap-1">
               <Button
@@ -427,128 +460,69 @@ export default function Inventory() {
         <div className="flex flex-wrap items-center gap-4 py-4 border-t border-b border-zinc-100">
           <div className="relative flex-1 min-w-[240px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-            <input
-              type="text"
-              placeholder="Search by Certificate Number..."
+            <Input
+              placeholder="Search by Cert No, Shape..."
+              className="pl-10 bg-white border-zinc-200 focus-visible:ring-blue-500"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="w-full pl-10 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-200 transition-all"
             />
           </div>
-
-          {/* Filter Bar */}
-          <div className="flex flex-wrap items-center gap-2 mb-6 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
-            <div className="flex items-center gap-2 pr-4 border-r border-zinc-200">
-              <Filter className="h-4 w-4 text-zinc-400" />
-              <span className="text-sm font-medium text-zinc-600">Filters</span>
+          
+          <div className="flex flex-wrap gap-2 w-full md:w-auto">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-zinc-500">Filters:</span>
+              <Select value={selectedShape} onValueChange={setSelectedShape}>
+                <SelectTrigger className="w-[120px] bg-white">
+                  <SelectValue placeholder="Shape" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Shapes</SelectItem>
+                  {METADATA_CONSTANTS.SHAPES.map((s: string) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
 
-            <select
-              className="text-sm border-zinc-200 rounded-lg bg-white h-9 px-3 focus:ring-2 focus:ring-zinc-900 outline-none"
-              value={selectedShape}
-              onChange={(e) => {
-                setSelectedShape(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">All Shapes</option>
-              <option value="ROUND">Round</option>
-              <option value="OVAL">Oval</option>
-              <option value="PEAR">Pear</option>
-              <option value="EMERALD">Emerald</option>
-              <option value="RADIANT">Radiant</option>
-              <option value="MARQUISE">Marquise</option>
-              <option value="PRINCESS">Princess</option>
-              <option value="CUSHION">Cushion</option>
-            </select>
+            <Select value={selectedColor} onValueChange={setSelectedColor}>
+              <SelectTrigger className="w-[100px] bg-white">
+                <SelectValue placeholder="Color" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Colors</SelectItem>
+                {METADATA_CONSTANTS.COLORS.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
 
-            <select
-              className="text-sm border-zinc-200 rounded-lg bg-white h-9 px-3 focus:ring-2 focus:ring-zinc-900 outline-none"
-              value={selectedCut}
-              onChange={(e) => {
-                setSelectedCut(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">All Cuts</option>
-              <option value="EX">Excellent</option>
-              <option value="VG">Very Good</option>
-              <option value="G">Good</option>
-            </select>
+            <Select value={selectedClarity} onValueChange={setSelectedClarity}>
+              <SelectTrigger className="w-[100px] bg-white">
+                <SelectValue placeholder="Clarity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Clarities</SelectItem>
+                {METADATA_CONSTANTS.CLARITIES.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
 
-            <div className="flex items-center gap-1.5 px-3 h-9 bg-white border border-zinc-200 rounded-lg">
-              <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Carat</span>
-              <input 
-                type="number" 
-                placeholder="Min" 
-                className="w-12 text-sm outline-none bg-transparent"
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-md border border-zinc-200">
+              <span className="text-xs font-medium text-zinc-400">Carats:</span>
+              <Input
+                type="number"
+                placeholder="Min"
+                className="w-16 h-7 text-xs border-none p-0 focus-visible:ring-0"
                 value={caratMin}
-                onChange={(e) => {
-                  setCaratMin(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => setCaratMin(e.target.value)}
               />
               <span className="text-zinc-300">-</span>
-              <input 
-                type="number" 
-                placeholder="Max" 
-                className="w-12 text-sm outline-none bg-transparent"
+              <Input
+                type="number"
+                placeholder="Max"
+                className="w-16 h-7 text-xs border-none p-0 focus-visible:ring-0"
                 value={caratMax}
-                onChange={(e) => {
-                  setCaratMax(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => setCaratMax(e.target.value)}
               />
             </div>
-
-            <select
-              className="text-sm border-zinc-200 rounded-lg bg-white h-9 px-3 focus:ring-2 focus:ring-zinc-900 outline-none"
-              value={selectedColor}
-              onChange={(e) => {
-                setSelectedColor(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">All Colors</option>
-              {['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'].map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-
-            <select
-              className="text-sm border-zinc-200 rounded-lg bg-white h-9 px-3 focus:ring-2 focus:ring-zinc-900 outline-none"
-              value={selectedClarity}
-              onChange={(e) => {
-                setSelectedClarity(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">All Clarities</option>
-              {['FL', 'IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2'].map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-zinc-500 hover:text-zinc-900"
-              onClick={() => {
-                setSelectedShape("");
-                setSelectedColor("");
-                setSelectedClarity("");
-                setSelectedCut("");
-                setCaratMin("");
-                setCaratMax("");
-                setSearch("");
-                setPage(1);
-              }}
-            >
-              Clear All
-            </Button>
           </div>
         </div>
       </div>
@@ -600,7 +574,7 @@ export default function Inventory() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-zinc-600">
+              <table className="w-full text-sm text-left text-zinc-600 min-w-[1000px]">
                 <thead className="text-xs text-zinc-500 uppercase bg-zinc-50 border-b border-zinc-200">
                   <tr>
                     <th className="px-6 py-3 w-10">
@@ -609,11 +583,32 @@ export default function Inventory() {
                         onCheckedChange={toggleSelectAll}
                       />
                     </th>
-                    <th className="px-6 py-3">Cert No. / Added By</th>
-                    <th className="px-6 py-3">Shape / Cut</th>
-                    <th className="px-6 py-3">Carats</th>
+                    <th className="px-6 py-3 cursor-pointer hover:text-zinc-900 group" onClick={() => handleSort('certificateNumber')}>
+                      <div className="flex items-center gap-1">
+                        Cert No. / Added By
+                        {sortBy === 'certificateNumber' && (sortOrder === 'asc' ? <ChevronLeft className="h-3 w-3 rotate-90" /> : <ChevronRight className="h-3 w-3 rotate-90" />)}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 cursor-pointer hover:text-zinc-900" onClick={() => handleSort('shape')}>
+                      <div className="flex items-center gap-1">
+                        Shape / Cut
+                        {sortBy === 'shape' && (sortOrder === 'asc' ? <ChevronLeft className="h-3 w-3 rotate-90" /> : <ChevronRight className="h-3 w-3 rotate-90" />)}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 cursor-pointer hover:text-zinc-900" onClick={() => handleSort('carat')}>
+                      <div className="flex items-center gap-1">
+                        Carats
+                        {sortBy === 'carat' && (sortOrder === 'asc' ? <ChevronLeft className="h-3 w-3 rotate-90" /> : <ChevronRight className="h-3 w-3 rotate-90" />)}
+                      </div>
+                    </th>
                     <th className="px-6 py-3">Color / Clarity</th>
-                    <th className="px-6 py-3">Price</th>
+                    <th className="px-6 py-3 cursor-pointer hover:text-zinc-900" onClick={() => handleSort('price')}>
+                      <div className="flex items-center gap-1">
+                        Price
+                        {sortBy === 'price' && (sortOrder === 'asc' ? <ChevronLeft className="h-3 w-3 rotate-90" /> : <ChevronRight className="h-3 w-3 rotate-90" />)}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3">Added Date</th>
                     <th className="px-6 py-3">Status</th>
                     <th className="px-6 py-3 text-right">Actions</th>
                   </tr>
@@ -683,9 +678,8 @@ export default function Inventory() {
                                                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Loading PDF...</span>
                                                </div>
                                              )}
-                                             <embed 
-                                               src={`http://localhost:4000/api/diamonds/certificate/${d.certificateLab}/${d.certificateNumber}`}
-                                               type="application/pdf"
+                                             <iframe 
+                                               src={`http://localhost:4000/api/diamonds/certificate/${d.certificateLab}/${d.certificateNumber}#toolbar=0&navpanes=0&scrollbar=0`}
                                                className={`w-[300%] h-[300%] scale-[0.33] origin-top-left border-none pointer-events-none transition-opacity duration-300 ${isCertLoading ? 'opacity-0' : 'opacity-100'}`}
                                                onLoad={() => {
                                                   // Small delayed transition for smoother appearance
@@ -755,6 +749,16 @@ export default function Inventory() {
                           ${d.price.toLocaleString()}
                         </td>
                         <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-zinc-900 font-medium">
+                              {d.createdAt ? new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(d.createdAt)) : 'N/A'}
+                            </span>
+                            <span className="text-zinc-400 text-[10px]">
+                              {d.createdAt ? new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(d.createdAt)) : ''}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                               d.status === "AVAILABLE"
@@ -795,6 +799,20 @@ export default function Inventory() {
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
+                            
+                            <div className="h-8 flex items-center px-1 border-l border-r border-zinc-100 mx-1">
+                              <Switch 
+                                checked={d.status === 'AVAILABLE'}
+                                onCheckedChange={(checked) => {
+                                  toggleStatusMutation.mutate({ 
+                                    id: d.id, 
+                                    status: checked ? 'AVAILABLE' : 'HOLD' 
+                                  });
+                                }}
+                                title={d.status === 'AVAILABLE' ? "Deactivate" : "Activate"}
+                              />
+                            </div>
+
                             <Button
                               variant="ghost"
                               size="icon"
@@ -813,17 +831,46 @@ export default function Inventory() {
                 </tbody>
               </table>
             </div>
+
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="px-6 py-4 flex items-center justify-between border-t border-zinc-100 bg-zinc-50/50">
-                <div className="text-sm text-zinc-500">
-                  Showing <span className="font-medium">{(page - 1) * limit + 1}</span> to{" "}
-                  <span className="font-medium">
-                    {Math.min(page * limit, total)}
-                  </span>{" "}
-                  of <span className="font-medium">{total}</span> results
+              <div className="px-6 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-zinc-100 bg-zinc-50/50 gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="text-sm text-zinc-500">
+                    Showing <span className="font-medium text-zinc-900">{(page - 1) * limit + 1}</span> to{" "}
+                    <span className="font-medium text-zinc-900">
+                      {Math.min(page * limit, total)}
+                    </span>{" "}
+                    of <span className="font-medium text-zinc-900">{total}</span> results
+                  </div>
+                  
+                  <div className="flex items-center gap-2 border-l border-zinc-200 pl-4">
+                    <span className="text-xs text-zinc-400 uppercase font-bold tracking-wider">Show</span>
+                    <select
+                      value={limit}
+                      onChange={(e) => {
+                        setLimit(Number(e.target.value));
+                        setPage(1);
+                      }}
+                      className="text-xs bg-white border border-zinc-200 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-zinc-400"
+                    >
+                      {[10, 20, 50, 100].map(val => (
+                        <option key={val} value={val}>{val}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div className="flex gap-1">
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => setPage(1)}
+                    disabled={page === 1}
+                  >
+                    First
+                  </Button>
                   <Button
                     variant="outline"
                     size="icon"
@@ -833,29 +880,33 @@ export default function Inventory() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    // Show a window of pages around current
-                    let pageNum = page;
-                    if (totalPages > 5) {
-                      if (page <= 3) pageNum = i + 1;
-                      else if (page >= totalPages - 2) pageNum = totalPages - 4 + i;
-                      else pageNum = page - 2 + i;
-                    } else {
-                      pageNum = i + 1;
-                    }
+                  
+                  <div className="flex items-center gap-1 px-2">
+                    {/* Advanced Pager Logic */}
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(p => {
+                        if (totalPages <= 7) return true;
+                        if (p === 1 || p === totalPages) return true;
+                        return Math.abs(p - page) <= 1;
+                      })
+                      .map((p, i, filtered) => {
+                        const showEllipsis = i > 0 && p !== filtered[i-1] + 1;
+                        return (
+                          <div key={p} className="flex items-center gap-1">
+                            {showEllipsis && <span className="text-zinc-400 text-xs px-1">...</span>}
+                            <Button
+                              variant={page === p ? "default" : "outline"}
+                              size="icon"
+                              className={`h-8 w-8 text-xs ${page === p ? "bg-zinc-900 text-white" : "text-zinc-600"}`}
+                              onClick={() => setPage(p)}
+                            >
+                              {p}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                  </div>
 
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={page === pageNum ? "default" : "outline"}
-                        size="sm"
-                        className={`h-8 w-8 p-0 ${page === pageNum ? "bg-zinc-900" : ""}`}
-                        onClick={() => setPage(pageNum)}
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
                   <Button
                     variant="outline"
                     size="icon"
@@ -864,6 +915,15 @@ export default function Inventory() {
                     disabled={page === totalPages}
                   >
                     <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => setPage(totalPages)}
+                    disabled={page === totalPages}
+                  >
+                    Last
                   </Button>
                 </div>
               </div>

@@ -4,6 +4,7 @@ import { bulkUploadDiamonds } from '../../api/diamond.api';
 import { StandardModal } from './StandardModal';
 import { Button } from './button';
 import { UploadCloud, CheckCircle2, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { Checkbox } from './checkbox';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 
@@ -24,10 +25,11 @@ export default function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProp
         failedCount: number;
         errors: { row: number, error: string }[];
     } | null>(null);
+    const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
 
     const uploadMutation = useMutation({
         mutationFn: bulkUploadDiamonds,
-        onSuccess: (data) => {
+        onSuccess: (data: any) => {
             setUploadResult(data);
             queryClient.invalidateQueries({ queryKey: ['diamonds'] });
             if (data.failedCount === 0) {
@@ -83,6 +85,7 @@ export default function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProp
                 if (jsonData.length > 0) {
                     setPreviewHeaders(Object.keys(jsonData[0]));
                     setPreviewData(jsonData);
+                    setSelectedIndices(new Set(jsonData.keys()));
                 } else {
                     setPreviewData([]);
                     setPreviewHeaders([]);
@@ -97,7 +100,12 @@ export default function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProp
         if (!selectedFile) return;
 
         if (previewData && previewData.length > 0) {
-            const worksheet = XLSX.utils.json_to_sheet(previewData);
+            const dataToUpload = previewData.filter((_, idx) => selectedIndices.has(idx));
+            if (dataToUpload.length === 0) {
+                toast.error("Please select at least one row to upload.");
+                return;
+            }
+            const worksheet = XLSX.utils.json_to_sheet(dataToUpload);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
@@ -116,6 +124,7 @@ export default function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProp
         setUploadResult(null);
         setPreviewData(null);
         setPreviewHeaders([]);
+        setSelectedIndices(new Set());
         if (fileInputRef.current) fileInputRef.current.value = '';
         onClose();
     };
@@ -177,6 +186,15 @@ export default function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProp
                                 <table className="w-full text-sm text-left relative">
                                     <thead className="text-xs text-zinc-500 uppercase bg-zinc-100 sticky top-0 z-10 shadow-sm">
                                         <tr>
+                                            <th className="px-4 py-3 min-w-[50px] font-medium border-b border-r border-zinc-200">
+                                                <Checkbox 
+                                                    checked={selectedIndices.size === previewData.length && previewData.length > 0}
+                                                    onCheckedChange={(checked) => {
+                                                        if (checked) setSelectedIndices(new Set(previewData.keys()));
+                                                        else setSelectedIndices(new Set());
+                                                    }}
+                                                />
+                                            </th>
                                             <th className="px-4 py-3 min-w-[50px] font-medium border-b border-r border-zinc-200">#</th>
                                             {previewHeaders.map(h => (
                                                 <th key={h} className="px-4 py-3 font-medium border-b border-r border-zinc-200 whitespace-nowrap">{h}</th>
@@ -185,7 +203,18 @@ export default function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProp
                                     </thead>
                                     <tbody className="divide-y divide-zinc-200 bg-white">
                                         {previewData.map((row, rIdx) => (
-                                            <tr key={rIdx} className="hover:bg-zinc-50 transition-colors focus-within:bg-blue-50">
+                                            <tr key={rIdx} className={`hover:bg-zinc-50 transition-colors focus-within:bg-blue-50 ${selectedIndices.has(rIdx) ? '' : 'opacity-60 bg-zinc-50/50'}`}>
+                                                <td className="px-4 py-2 border-r border-zinc-100 text-center">
+                                                    <Checkbox 
+                                                        checked={selectedIndices.has(rIdx)}
+                                                        onCheckedChange={(checked) => {
+                                                            const newIndices = new Set(selectedIndices);
+                                                            if (checked) newIndices.add(rIdx);
+                                                            else newIndices.delete(rIdx);
+                                                            setSelectedIndices(newIndices);
+                                                        }}
+                                                    />
+                                                </td>
                                                 <td className="px-4 py-2 text-zinc-400 border-r border-zinc-100 font-medium text-center">{rIdx + 1}</td>
                                                 {previewHeaders.map(h => (
                                                     <td key={h} className="p-0 border-r border-zinc-100 last:border-r-0">
