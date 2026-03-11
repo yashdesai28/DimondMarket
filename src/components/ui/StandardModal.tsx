@@ -13,7 +13,7 @@ interface StandardModalProps {
     title: string;
     description?: string;
     children: React.ReactNode;
-    maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl';
+    maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | '7xl';
 }
 
 export function StandardModal({
@@ -34,6 +34,8 @@ export function StandardModal({
         '3xl': 'sm:max-w-3xl',
         '4xl': 'sm:max-w-4xl',
         '5xl': 'sm:max-w-5xl',
+        '6xl': 'sm:max-w-6xl',
+        '7xl': 'sm:max-w-7xl',
     };
 
     return (

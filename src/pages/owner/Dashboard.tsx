@@ -8,7 +8,7 @@ import { fetchDiamonds } from '../../api/diamond.api';
 export default function OwnerDashboard() {
     const { businessId } = useAuthStore();
 
-    const { data: diamonds, isLoading } = useQuery({
+    const { data, isLoading } = useQuery({
         queryKey: ['diamonds', businessId],
         queryFn: () => fetchDiamonds(businessId!),
         enabled: !!businessId,
@@ -16,9 +16,10 @@ export default function OwnerDashboard() {
 
     // Calculate shape statistics
     const shapeStats = useMemo(() => {
-        if (!diamonds) return [];
+        const diamondList = data?.diamonds || [];
+        if (!diamondList.length) return [];
 
-        const counts = diamonds.reduce((acc, d) => {
+        const counts = diamondList.reduce((acc, d) => {
             const shape = d.shape || 'Unknown';
             if (!acc[shape]) acc[shape] = 0;
             acc[shape]++;
@@ -28,11 +29,11 @@ export default function OwnerDashboard() {
         return Object.entries(counts)
             .sort((a, b) => b[1] - a[1]) // Sort by highest count first
             .map(([shape, count]) => ({ shape, count }));
-    }, [diamonds]);
+    }, [data]);
 
     if (isLoading) return <div className="p-8">Loading dashboard...</div>;
 
-    const totalValue = diamonds?.reduce((acc, d) => acc + (Number(d.price) || 0), 0) || 0;
+    const totalValue = data?.diamonds?.reduce((acc, d) => acc + (Number(d.price) || 0), 0) || 0;
 
     return (
         <div className="p-8 h-full bg-white text-zinc-900">
@@ -52,7 +53,7 @@ export default function OwnerDashboard() {
                         <Diamond className="h-4 w-4 text-zinc-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{diamonds?.length || 0}</div>
+                        <div className="text-2xl font-bold">{data?.total || 0}</div>
                     </CardContent>
                 </Card>
 
